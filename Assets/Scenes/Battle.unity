@@ -294,7 +294,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5284efe9ca53fbe41b2df85bf47c307d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  currentState: 1
+  maxY: 2.2
+  minY: -2.2
+  velocidad: 20
+  paddle: {fileID: 103018926}
 --- !u!1 &302804219
 GameObject:
   m_ObjectHideFlags: 0
@@ -468,7 +471,7 @@ GameObject:
   - component: {fileID: 405974647}
   m_Layer: 0
   m_Name: Ball
-  m_TagString: Untagged
+  m_TagString: Ball
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0

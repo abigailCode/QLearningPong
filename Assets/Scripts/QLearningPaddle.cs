@@ -1,120 +1,217 @@
-﻿using UnityEngine;
+﻿using System.IO;
+using UnityEngine;
 
 public class PaddleController : MonoBehaviour
 {
-    private const int NumStates = 3; // Número de estados discretos (posiciones de la pala)
-    private const int NumActions = 3; // Número de acciones posibles (mover arriba, abajo, quedarse quieto)
 
-    private double[,] qTable; // Tabla Q
-    private double learningRate = 0.1;
-    private double discountFactor = 0.1;
-    private double explorationRate = 0.9;
+    private float[,] QTable;
+    private float learningRate = 0.1f;
+    private float discountFactor = 0.9f;
+    private float explorationRate = 0.1f;
+    public float maxY = 2.2f;
+    public float minY = -2.2f;
+    public float velocidad;
 
-    private float minY = -2.2f;
-    private float maxY = 2.2f;
-    private float moveSpeed = 5f;
+    private Vector2 prevPaddlePosition;
+    private Vector2 prevBallPosition;
 
-    private enum PaddleState { Lowest, Middle, Highest };
-    [SerializeField] PaddleState currentState = PaddleState.Middle;
+    private int prevAction;
+    private int state;
 
-    private void Start()
+    GameObject ball;
+    public Transform paddle;
+
+    private bool behindPaddle = false;
+
+    void Start()
     {
-        qTable = new double[NumStates, NumActions];
+        Time.timeScale = 50;
+        ball = GameObject.Find("Ball");
+        QTable = new float[2, 3]; 
+        LoadQTableFromFile();
+
+        prevBallPosition = ball.transform.position;
+        prevPaddlePosition = paddle.position;
     }
 
-    private void Update()
+    void Update()
     {
-        // Obtener el estado actual
-        int currentStateIndex = (int)currentState;
+        ball = GameObject.Find("Ball");
+        Vector2 ballPosition = ball.transform.position;
+        Vector2 paddlePosition = paddle.position;
 
-        // Elegir acción usando ε-greedy
-        int action = ChooseAction(currentStateIndex);
+        state = (ballPosition.y > paddlePosition.y) ? 1 : 0;
 
-        // Tomar la acción
-        PerformAction(action);
+        int action = EpsilonGreedy(state);
+        Debug.Log(action);
 
-        // Actualizar el estado actual
-        currentState = GetNewState();
-    }
+        MovePaddle(action);
 
-    private int ChooseAction(int state)
-    {
-        print(state);
-        if (Random.value <= explorationRate)
+        float reward = CalculateReward();
+
+        UpdateQTable(state, action, reward);
+
+        prevPaddlePosition = paddlePosition;
+        prevBallPosition = ballPosition;
+        prevAction = action;
+
+        if (ballPosition.x > paddlePosition.x)
         {
-            return Random.Range(0, NumActions); // Acción aleatoria para explorar
+            behindPaddle = false;
+        }
+    }
+
+    int EpsilonGreedy(int state)
+    {
+        if (UnityEngine.Random.Range(0f, 1f) < explorationRate)
+        {
+            return UnityEngine.Random.Range(0, 3);
         }
         else
         {
-            // Acción óptima según la tabla Q
-            int bestAction = 0;
-            double bestValue = qTable[state, 0];
-            for (int i = 1; i < NumActions; i++)
+            int action = 0;
+            float maxQ = float.MinValue;
+            for (int i = 0; i < 3; i++)
             {
-                if (qTable[state, i] > bestValue)
+                if (QTable[state, i] > maxQ)
                 {
-                    bestAction = i;
-                    bestValue = qTable[state, i];
+                    maxQ = QTable[state, i];
+                    action = i;
                 }
             }
-            return bestAction;
+            return action;
         }
     }
 
-    private void PerformAction(int action)
+    void MovePaddle(int action)
     {
         switch (action)
         {
             case 0:
-                MoveUp();
                 break;
             case 1:
-                MoveDown();
+                if (paddle.position.y < maxY)
+                {
+                    paddle.Translate(Vector2.up * velocidad * Time.deltaTime);
+                }
                 break;
             case 2:
-                StayStill();
+                if (paddle.position.y > minY)
+                {
+                    paddle.Translate(Vector2.down * velocidad * Time.deltaTime);
+                }
                 break;
         }
     }
 
-    private void MoveUp()
+    void OnCollisionEnter2D(Collision2D collision)
     {
-        if (transform.position.y < maxY)
+        if (collision.gameObject.CompareTag("Ball"))
         {
-            transform.Translate(Vector3.up * moveSpeed * Time.deltaTime);
+            Debug.Log("Collision Ball");
+           
+            behindPaddle = false;
+            UpdateQTable(state, prevAction, 1f);
         }
     }
 
-    private void MoveDown()
+    float CalculateReward()
     {
-        if (transform.position.y > minY)
-        {
-            transform.Translate(Vector3.down * moveSpeed * Time.deltaTime);
-        }
-    }
+        Vector2 ballPosition = ball.transform.position;
+        Vector2 paddlePosition = paddle.position;
 
-    private void StayStill()
-    {
-        // No hacer nada, la pala se queda quieta en la posición actual
-    }
-
-    private PaddleState GetNewState()
-    {
-        float paddleY = transform.position.y;
-        //Debug.Log($"paddleY:          {paddleY}");
-        //Debug.Log($"lowest:          {minY + (maxY - minY) / 3}");
-        //Debug.Log($"highest:          {maxY - (maxY - minY) / 3}");
-        if (paddleY <= minY + (maxY - minY) / 3)
+       
+        if (ball.transform.position.x < prevBallPosition.x && ball.transform.position.x < paddle.position.x && !behindPaddle)
         {
-            return PaddleState.Lowest;
-        }
-        else if (paddleY >= maxY - (maxY - minY) / 3)
-        {
-            return PaddleState.Highest;
+            behindPaddle = true; 
+            Debug.Log("-1");
+            return -1f;
         }
         else
         {
-            return PaddleState.Middle;
+            return 0f;
         }
+    }
+
+    void UpdateQTable(int state, int action, float reward)
+    {
+        float maxQ = Mathf.Max(QTable[state, 0], QTable[state, 1], QTable[state, 2]);
+        QTable[state, action] += learningRate * (reward + discountFactor * maxQ - QTable[state, action]);
+    }
+
+    void LoadQTableFromFile()
+    {
+        string filePath = Application.persistentDataPath + "/Level2.txt";
+
+        if (File.Exists(filePath))
+        {
+            using (StreamReader reader = new StreamReader(filePath))
+            {
+                for (int i = 0; i < 2; i++)
+                {
+                    for (int j = 0; j < 3; j++)
+                    {
+                        string line = reader.ReadLine();
+                        if (!string.IsNullOrEmpty(line))
+                        {
+                            if (float.TryParse(line, out float value))
+                            {
+                                QTable[i, j] = value;
+                            }
+                            else
+                            {
+                                Debug.LogWarning("Invalid value in QTable file.");
+                            }
+                        }
+                        else
+                        {
+                            Debug.LogWarning("Empty line found in QTable file.");
+                        }
+                    }
+                }
+            }
+            Debug.Log("QTable loaded from: " + filePath);
+        }
+        else
+        {
+            Debug.LogWarning("No QTable file found. Creating new QTable.");
+            InitializeQTable();
+        }
+    }
+
+
+    void InitializeQTable()
+    {
+        QTable = new float[2, 3]; 
+        for (int i = 0; i < 2; i++)
+        {
+            for (int j = 0; j < 3; j++)
+            {
+                QTable[i, j] = UnityEngine.Random.Range(0f, 1f);
+            }
+        }
+    }
+
+    void OnApplicationQuit()
+    {
+        SaveQTableToFile();
+    }
+
+    void SaveQTableToFile()
+    {
+        string filePath = Application.persistentDataPath + "/Level2.txt";
+
+        using (StreamWriter writer = new StreamWriter(filePath))
+        {
+            for (int i = 0; i < 2; i++)
+            {
+                for (int j = 0; j < 3; j++)
+                {
+                    writer.WriteLine(QTable[i, j].ToString());
+                }
+            }
+        }
+
+        Debug.Log("QTable saved to: " + filePath);
     }
 }
