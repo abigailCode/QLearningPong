@@ -25,7 +25,7 @@ public class PaddleController : MonoBehaviour
 
     void Start()
     {
-        Time.timeScale = 50;
+        Time.timeScale = 10;
         ball = GameObject.Find("Ball");
         QTable = new float[2, 3]; 
         LoadQTableFromFile();
@@ -214,4 +214,29 @@ public class PaddleController : MonoBehaviour
 
         Debug.Log("QTable saved to: " + filePath);
     }
+
+    //Posible actions
+    //Posible states
+    //Q algorithm +10/-10
+    //if x!= !epsilon -> epsilon = x ?? 
+    //at first -> epsilon = random
+    //save +10 or -10 if good or bad result in each position
+    
+
+    //Qtable: ACTIONS-> up & down STATES: 10 or -10
+
+    // (pala, pelota x, pelota y) / (puntuaciones acciones subir, bajar, permanecer quieto)
+    //(50, 60, 80) / (2.78,3.69,0.21)
+
+    /*
+     ESTADOS:
+    1-> y = 0
+    2-> y= 0.5
+    3-> y= 1
+    4-> y = 1.5
+    5-> y= 2
+
+    [[ 1, -0.5, 0.5], [2, -0.5,0.5]]
+
+     */
 }
